@@ -45,6 +45,20 @@ header{
     height:42px; 
     width: auto;
     object-fit: contain;
+    display: block;
+}
+
+.logo-placeholder {
+    height: 42px;
+    width: 42px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    border: 1px solid rgba(255,255,255,0.2);
 }
 
 .header-title{
@@ -315,18 +329,6 @@ video{
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-
-/* Стили для текстового логотипа как запасного варианта */
-.text-logo {
-    display: inline-block;
-    font-weight: bold;
-    font-size: 24px;
-    color: white;
-    padding: 8px 16px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.2);
-}
 </style>
 </head>
 
@@ -349,21 +351,17 @@ video{
 
 <header>
     <div class="header-top">
-        <!-- Вариант 1: Используем безопасную HTTPS ссылку -->
-        <!-- <img src="https://irtz.ru/PC/pc.png" class="logo" alt="Логотип" onerror="handleImageError(this)"> -->
+        <!-- Основной логотип с HTTPS -->
+        <img src="https://irtz.ru/PC/pc.png" 
+             class="logo" 
+             alt="Логотип Чек-лист обхода" 
+             onerror="handleImageError(this)"
+             onload="logoLoaded(this)">
         
-        <!-- Вариант 2: Встроенное SVG изображение (рекомендуется для HTTPS) -->
-        <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Логотип">
-            <rect width="100" height="100" rx="15" fill="#001355"/>
-            <rect x="20" y="20" width="60" height="60" rx="8" fill="white" opacity="0.1"/>
-            <path d="M35 35 L65 35 L65 65 L35 65 Z" fill="none" stroke="white" stroke-width="4"/>
-            <circle cx="50" cy="50" r="15" fill="none" stroke="white" stroke-width="4"/>
-            <path d="M40 40 L60 60 M60 40 L40 60" stroke="white" stroke-width="3" stroke-linecap="round"/>
-            <text x="50" y="85" text-anchor="middle" fill="white" font-size="12" font-family="Arial">ЧЛО</text>
-        </svg>
-        
-        <!-- Вариант 3: Текстовый логотип как запасной вариант -->
-        <!-- <div class="text-logo">ЧЛО</div> -->
+        <!-- Запасной вариант (скрыт по умолчанию) -->
+        <div id="logoFallback" class="logo-placeholder" style="display: none;">
+            ЧЛО
+        </div>
         
         <div class="header-title">
             <h1>ЧЕК-ЛИСТ ОБХОДА</h1>
@@ -417,27 +415,57 @@ const recognitions = new Map();
 // Храним состояние для каждого замечания
 const voiceStates = new Map();
 
-// Функция для обработки ошибки загрузки изображения
+// Функция для обработки успешной загрузки логотипа
+function logoLoaded(img) {
+    console.log("Логотип успешно загружен");
+    // Скрываем запасной вариант если он был показан
+    document.getElementById('logoFallback').style.display = 'none';
+    img.style.display = 'block';
+}
+
+// Функция для обработки ошибки загрузки логотипа
 function handleImageError(img) {
-    console.warn("Не удалось загрузить изображение логотипа:", img.src);
+    console.warn("Не удалось загрузить логотип по URL:", img.src);
     
-    // Создаем SVG логотип как запасной вариант
-    const svgLogo = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svgLogo.setAttribute("class", "logo");
-    svgLogo.setAttribute("viewBox", "0 0 100 100");
-    svgLogo.setAttribute("aria-label", "Логотип");
+    // Пытаемся загрузить через HTTP если HTTPS не сработал
+    if (img.src.startsWith('https://')) {
+        const httpSrc = img.src.replace('https://', 'http://');
+        console.log("Пробуем загрузить через HTTP:", httpSrc);
+        
+        const fallbackImg = new Image();
+        fallbackImg.onload = function() {
+            console.log("Логотип загружен через HTTP");
+            img.src = httpSrc;
+            img.onerror = null;
+            img.style.display = 'block';
+            document.getElementById('logoFallback').style.display = 'none';
+        };
+        fallbackImg.onerror = function() {
+            console.log("HTTP также не сработал, показываем запасной вариант");
+            showLogoFallback(img);
+        };
+        fallbackImg.src = httpSrc;
+    } else {
+        showLogoFallback(img);
+    }
+}
+
+// Показать запасной вариант логотипа
+function showLogoFallback(originalImg) {
+    originalImg.style.display = 'none';
+    const fallback = document.getElementById('logoFallback');
+    fallback.style.display = 'flex';
+    fallback.innerHTML = 'ЧЛО';
     
-    svgLogo.innerHTML = `
-        <rect width="100" height="100" rx="15" fill="#001355"/>
-        <rect x="20" y="20" width="60" height="60" rx="8" fill="white" opacity="0.1"/>
-        <path d="M35 35 L65 35 L65 65 L35 65 Z" fill="none" stroke="white" stroke-width="4"/>
-        <circle cx="50" cy="50" r="15" fill="none" stroke="white" stroke-width="4"/>
-        <path d="M40 40 L60 60 M60 40 L40 60" stroke="white" stroke-width="3" stroke-linecap="round"/>
-        <text x="50" y="85" text-anchor="middle" fill="white" font-size="12" font-family="Arial">ЧЛО</text>
+    // Можем добавить SVG как альтернативу
+    /*
+    fallback.innerHTML = `
+        <svg width="42" height="42" viewBox="0 0 100 100">
+            <rect width="100" height="100" rx="10" fill="#001355"/>
+            <text x="50" y="60" text-anchor="middle" fill="white" font-size="40" font-family="Arial">Ч</text>
+        </svg>
     `;
-    
-    // Заменяем сломанное изображение на SVG
-    img.parentNode.replaceChild(svgLogo, img);
+    */
 }
 
 // Управление модальным окном для фото
@@ -462,20 +490,19 @@ document.addEventListener('DOMContentLoaded', function() {
         dateInput.value = today;
     }
     
-    // Автоматически загружаем HTTPS версию если доступна
-    const loadLogoFromHTTPS = function() {
-        const logo = document.querySelector('.logo[src]');
-        if (logo && logo.src.startsWith('http://')) {
-            const httpsSrc = logo.src.replace('http://', 'https://');
-            logo.src = httpsSrc;
-            logo.onerror = function() {
-                handleImageError(this);
-            };
-        }
-    };
-    
-    // Пытаемся загрузить HTTPS версию
-    loadLogoFromHTTPS();
+    // Оптимизация загрузки логотипа
+    const logoImg = document.querySelector('.logo[src]');
+    if (logoImg) {
+        // Добавляем таймаут для повторной попытки если не загрузился
+        setTimeout(function() {
+            if (logoImg.naturalWidth === 0) {
+                console.log("Логотип не загрузился, пробуем заново");
+                const src = logoImg.src;
+                logoImg.src = '';
+                setTimeout(() => logoImg.src = src, 100);
+            }
+        }, 2000);
+    }
 });
 
 // Функция для увеличения фото
