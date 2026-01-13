@@ -41,25 +41,7 @@ header{
     gap:15px;
 }
 
-.logo{ 
-    height:42px; 
-    width: auto;
-    object-fit: contain;
-    display: block;
-}
-
-.logo-placeholder {
-    height: 42px;
-    width: 42px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    border: 1px solid rgba(255,255,255,0.2);
-}
+.logo{ height:42px; }
 
 .header-title{
     flex:1;
@@ -186,7 +168,7 @@ video{
     border-radius:4px;
     margin:5px;
     border:2px solid var(--main);
-    object-fit:cover;
+    object-fit:contain;
     cursor:zoom-in;
     transition:transform 0.3s;
 }
@@ -351,18 +333,7 @@ video{
 
 <header>
     <div class="header-top">
-        <!-- Основной логотип с HTTPS -->
-        <img src="https://irtz.ru/PC/pc.png" 
-             class="logo" 
-             alt="Логотип Чек-лист обхода" 
-             onerror="handleImageError(this)"
-             onload="logoLoaded(this)">
-        
-        <!-- Запасной вариант (скрыт по умолчанию) -->
-        <div id="logoFallback" class="logo-placeholder" style="display: none;">
-            ЧЛО
-        </div>
-        
+        <img src="data:image/png;base64,ВАШ_КОД_BASE64_ЗДЕСЬ" class="logo" alt="Логотип">
         <div class="header-title">
             <h1>ЧЕК-ЛИСТ ОБХОДА</h1>
             <p>Операционный контроль</p>
@@ -415,59 +386,6 @@ const recognitions = new Map();
 // Храним состояние для каждого замечания
 const voiceStates = new Map();
 
-// Функция для обработки успешной загрузки логотипа
-function logoLoaded(img) {
-    console.log("Логотип успешно загружен");
-    // Скрываем запасной вариант если он был показан
-    document.getElementById('logoFallback').style.display = 'none';
-    img.style.display = 'block';
-}
-
-// Функция для обработки ошибки загрузки логотипа
-function handleImageError(img) {
-    console.warn("Не удалось загрузить логотип по URL:", img.src);
-    
-    // Пытаемся загрузить через HTTP если HTTPS не сработал
-    if (img.src.startsWith('https://')) {
-        const httpSrc = img.src.replace('https://', 'http://');
-        console.log("Пробуем загрузить через HTTP:", httpSrc);
-        
-        const fallbackImg = new Image();
-        fallbackImg.onload = function() {
-            console.log("Логотип загружен через HTTP");
-            img.src = httpSrc;
-            img.onerror = null;
-            img.style.display = 'block';
-            document.getElementById('logoFallback').style.display = 'none';
-        };
-        fallbackImg.onerror = function() {
-            console.log("HTTP также не сработал, показываем запасной вариант");
-            showLogoFallback(img);
-        };
-        fallbackImg.src = httpSrc;
-    } else {
-        showLogoFallback(img);
-    }
-}
-
-// Показать запасной вариант логотипа
-function showLogoFallback(originalImg) {
-    originalImg.style.display = 'none';
-    const fallback = document.getElementById('logoFallback');
-    fallback.style.display = 'flex';
-    fallback.innerHTML = 'ЧЛО';
-    
-    // Можем добавить SVG как альтернативу
-    /*
-    fallback.innerHTML = `
-        <svg width="42" height="42" viewBox="0 0 100 100">
-            <rect width="100" height="100" rx="10" fill="#001355"/>
-            <text x="50" y="60" text-anchor="middle" fill="white" font-size="40" font-family="Arial">Ч</text>
-        </svg>
-    `;
-    */
-}
-
 // Управление модальным окном для фото
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('photoModal');
@@ -488,20 +406,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!dateInput.value) {
         const today = new Date().toISOString().split('T')[0];
         dateInput.value = today;
-    }
-    
-    // Оптимизация загрузки логотипа
-    const logoImg = document.querySelector('.logo[src]');
-    if (logoImg) {
-        // Добавляем таймаут для повторной попытки если не загрузился
-        setTimeout(function() {
-            if (logoImg.naturalWidth === 0) {
-                console.log("Логотип не загрузился, пробуем заново");
-                const src = logoImg.src;
-                logoImg.src = '';
-                setTimeout(() => logoImg.src = src, 100);
-            }
-        }, 2000);
     }
 });
 
@@ -654,28 +558,54 @@ function takePhoto(remarkNumber) {
     }
     
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
     const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Сохраняем фото как Data URL (для превью)
+    // Получаем реальные размеры видео
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    
+    // Сохраняем ориентацию
+    const isPortrait = videoHeight > videoWidth;
+    
+    // Для сохранения ориентации устанавливаем размеры canvas как у видео
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    
+    // Рисуем изображение без поворотов
+    context.drawImage(video, 0, 0, videoWidth, videoHeight);
+    
+    // Сохраняем информацию об ориентации
+    remark.setAttribute('data-photo-orientation', isPortrait ? 'portrait' : 'landscape');
+    remark.setAttribute('data-photo-width', videoWidth);
+    remark.setAttribute('data-photo-height', videoHeight);
+    
+    // Сохраняем фото как Data URL
     const photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
     
-    // Создаем превью с возможностью увеличения
+    // Создаем превью
     const img = document.createElement('img');
     img.src = photoDataUrl;
     img.alt = `Фото замечания ${remarkNumber}`;
+    
+    // Для превью сохраняем ориентацию
+    if (isPortrait) {
+        img.style.maxWidth = '200px';
+        img.style.maxHeight = '300px';
+    } else {
+        img.style.maxWidth = '300px';
+        img.style.maxHeight = '200px';
+    }
+    img.style.objectFit = 'contain';
+    
     img.onclick = function() { zoomPhoto(this); };
     
     preview.innerHTML = '';
     preview.appendChild(img);
     
-    // Сохраняем фото в двух форматах
+    // Сохраняем фото
     remark.setAttribute('data-photo-base64', photoDataUrl);
     
-    // Сохраняем как Blob для Excel (больший размер для лучшего качества)
+    // Сохраняем как Blob
     canvas.toBlob(function(blob) {
         const reader = new FileReader();
         reader.onloadend = function() {
@@ -1138,9 +1068,6 @@ async function exportExcelWithImages() {
             row.getCell(6).value = ""; // Срок устранения
             row.getCell(7).value = "Не рассмотрено"; // Статус по умолчанию
             
-            // Устанавливаем высоту строки
-            row.height = 150; // Высота для фото
-            
             // Устанавливаем выравнивание
             for (let col = 1; col <= 7; col++) {
                 const cell = row.getCell(col);
@@ -1174,65 +1101,6 @@ async function exportExcelWithImages() {
             };
             
             // Добавляем условное форматирование для цветового кодирования статусов
-            // Создаем правила условного форматирования для каждой ячейки статуса
-            const statusValue = statusCell.value;
-            
-            // Функция для применения цвета в зависимости от статуса
-            function applyStatusColor(cell, status) {
-                switch(status) {
-                    case 'Выполнено':
-                        cell.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: 'FFC6EFCE' } // Светло-зеленый
-                        };
-                        cell.font = {
-                            color: { argb: 'FF006100' } // Темно-зеленый текст
-                        };
-                        break;
-                    case 'В работе':
-                        cell.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: 'FFFFEB9C' } // Светло-желтый
-                        };
-                        cell.font = {
-                            color: { argb: 'FF9C5700' } // Темно-желтый текст
-                        };
-                        break;
-                    case 'Отклонено':
-                        cell.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: 'FFF2F2F2' } // Светло-серый
-                        };
-                        cell.font = {
-                            color: { argb: 'FF7F7F7F' } // Серый текст
-                        };
-                        break;
-                    case 'Не рассмотрено':
-                    default:
-                        // Без цвета (белый)
-                        cell.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: 'FFFFFFFF' }
-                        };
-                        cell.font = {
-                            color: { argb: 'FF000000' } // Черный текст
-                        };
-                        break;
-                }
-            }
-            
-            // Применяем цвет для начального значения
-            applyStatusColor(statusCell, statusValue);
-            
-            // Добавляем обработчик изменения значения в выпадающем списке
-            // Примечание: в ExcelJS нельзя динамически изменять форматирование после создания файла,
-            // но условное форматирование будет работать при выборе значений в Excel
-            
-            // Добавляем условное форматирование для Excel
             const statusColumnLetter = 'G'; // Колонка G (7)
             
             // Правило для "Выполнено" (зеленый)
@@ -1313,27 +1181,64 @@ async function exportExcelWithImages() {
                     const base64Data = photoBlob.split(',')[1];
                     const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
                     
+                    // Получаем сохраненные размеры изображения и ориентацию
+                    const originalWidth = parseInt(remark.getAttribute('data-photo-width')) || 0;
+                    const originalHeight = parseInt(remark.getAttribute('data-photo-height')) || 0;
+                    const orientation = remark.getAttribute('data-photo-orientation') || 'landscape';
+                    
                     // Добавляем изображение в Excel
                     const imageId = workbook.addImage({
                         buffer: imageBuffer,
                         extension: 'jpeg'
                     });
                     
+                    // Рассчитываем размеры для Excel с сохранением пропорций
+                    const maxCellWidth = 300;  // максимальная ширина в пикселях
+                    const maxCellHeight = 400; // максимальная высота в пикселях (увеличили для портретных фото)
+                    
+                    let targetWidth = originalWidth;
+                    let targetHeight = originalHeight;
+                    
+                    // Масштабируем, если нужно
+                    if (originalWidth > 0 && originalHeight > 0) {
+                        const widthRatio = maxCellWidth / originalWidth;
+                        const heightRatio = maxCellHeight / originalHeight;
+                        const scaleRatio = Math.min(widthRatio, heightRatio);
+                        
+                        targetWidth = Math.round(originalWidth * scaleRatio);
+                        targetHeight = Math.round(originalHeight * scaleRatio);
+                    } else {
+                        // Если размеры не сохранены, используем стандартные
+                        targetWidth = 300;
+                        targetHeight = 200;
+                    }
+                    
+                    // Автоматически подстраиваем высоту строки под изображение
+                    // В Excel: 1 пиксель ≈ 0.75 пунктов, + отступы
+                    const excelRowHeight = Math.max(120, Math.round(targetHeight * 0.75) + 20);
+                    row.height = excelRowHeight;
+                    
+                    // Рассчитываем отступ для центрирования изображения в ячейке
+                    const cellWidthPixels = 45 * 7; // примерная ширина колонки в пикселях
+                    const cellHeightPixels = excelRowHeight * 0.75;
+                    const offsetX = Math.max(0, Math.round((cellWidthPixels - targetWidth) / 2));
+                    const offsetY = Math.max(0, Math.round((cellHeightPixels - targetHeight) / 2));
+                    
                     // Вставляем изображение в ячейку B (колонка 2)
                     worksheet.addImage(imageId, {
-                        tl: { col: 1, row: currentRow - 1 }, // Колонка B (индекс 1)
-                        br: { col: 2, row: currentRow }, // Занимает 2 колонки
-                        ext: { width: 300, height: 200 }
+                        tl: { col: 1, row: currentRow - 1, offsetX: offsetX, offsetY: offsetY },
+                        ext: { width: targetWidth, height: targetHeight }
                     });
                     
-                    row.getCell(2).value = "Фото";
-                    row.getCell(2).alignment = { 
-                        vertical: 'bottom',
-                        horizontal: 'center'
-                    };
+                    row.getCell(2).value = "";
+                    
                 } catch (error) {
                     console.error("Ошибка при добавлении фото:", error);
                     row.getCell(2).value = "Ошибка фото";
+                    row.getCell(2).alignment = { 
+                        vertical: 'middle', 
+                        horizontal: 'center' 
+                    };
                 }
             } else {
                 row.getCell(2).value = "Нет фото";
