@@ -273,40 +273,17 @@ video{
     font-size: 14px;
 }
 
-/* Стили для управления вспышкой */
-.flash-controls {
+/* Стили для управления подсветкой */
+.torch-controls {
     display: flex;
     gap: 8px;
     margin-bottom: 10px;
     flex-wrap: wrap;
 }
 
-.flash-controls button {
+.torch-controls button {
     flex: 1;
     min-width: 140px;
-}
-
-.flash-on {
-    background: #ff9800 !important;
-    color: white !important;
-}
-
-.flash-on:hover {
-    background: #f57c00 !important;
-}
-
-/* Эффект вспышки при фотографировании */
-.flash-effect {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: white;
-    opacity: 0;
-    z-index: 9999;
-    pointer-events: none;
-    transition: opacity 0.3s;
 }
 
 /* Кнопка подсветки (torch) */
@@ -321,8 +298,8 @@ video{
     .route-grid{ grid-template-columns:1fr; }
     .voice-controls{ flex-direction:column; }
     .voice-controls button{ width:100%; min-width:auto; }
-    .flash-controls{ flex-direction:column; }
-    .flash-controls button{ width:100%; min-width:auto; }
+    .torch-controls{ flex-direction:column; }
+    .torch-controls button{ width:100%; min-width:auto; }
     video{ max-width:100%; }
     .photo-preview img{ max-width:200px; max-height:150px; }
 }
@@ -369,9 +346,6 @@ video{
     </div>
 </div>
 
-<!-- Эффект вспышки -->
-<div id="flashEffect" class="flash-effect"></div>
-
 <div id="loading" class="loading">
     <div class="loading-spinner"></div>
     <div>Создание протокола с фотографиями...</div>
@@ -407,7 +381,7 @@ video{
         </div>
         <div>
             <label>Маршрут обхода</label>
-            <select id="route">
+            <select id="route" onchange="updateLocationOptions()">
             <option>Маршрут 1 — Складской комплекс первой территории</option>
                 <option>Маршрут 2 — ЦПТ( Сектора с 10 по 15)</option>
                 <option>Маршрут 3 — АБК, ИЛ, ОТК, ТС, СГЭ - первой площадки</option>
@@ -433,8 +407,80 @@ let remarkCount = 0;
 const recognitions = new Map();
 // Храним состояние для каждого замечания
 const voiceStates = new Map();
-// Храним состояние вспышки для каждого замечания
-const flashStates = new Map();
+// Храним состояние подсветки для каждого замечания
+const torchStates = new Map();
+
+// Функция для обновления опций в зависимости от выбранного маршрута
+function updateLocationOptions() {
+    const routeSelect = document.getElementById('route');
+    const selectedRoute = routeSelect.value;
+    
+    // Обновляем все существующие поля "Место обнаружения"
+    document.querySelectorAll('.location-select').forEach(select => {
+        updateSingleLocationSelect(select, selectedRoute);
+    });
+}
+
+function updateSingleLocationSelect(selectElement, route) {
+    // Сохраняем текущее значение
+    const currentValue = selectElement.value;
+    
+    // Очищаем текущие опции
+    selectElement.innerHTML = '';
+    
+    // Добавляем опцию "Другое (ввести вручную)"
+    const customOption = document.createElement('option');
+    customOption.value = 'custom';
+    customOption.textContent = 'Другое (ввести вручную)';
+    selectElement.appendChild(customOption);
+    
+    // Добавляем опции в зависимости от маршрута
+    if (route === 'Маршрут 1 — Складской комплекс первой территории') {
+        for (let i = 1; i <= 8; i++) {
+            const option = document.createElement('option');
+            option.value = `Сектор ${i}`;
+            option.textContent = `Сектор ${i}`;
+            selectElement.appendChild(option);
+        }
+    } else if (route === 'Маршрут 2 — ЦПТ( Сектора с 10 по 15)') {
+        for (let i = 10; i <= 15; i++) {
+            const option = document.createElement('option');
+            option.value = `Сектор ${i}`;
+            option.textContent = `Сектор ${i}`;
+            selectElement.appendChild(option);
+        }
+    } else if (route === 'Маршрут 3 — АБК, ИЛ, ОТК, ТС, СГЭ - первой площадки') {
+        const options = ['АБК', 'ИЛ', 'ОТК', 'ТС', 'СГЭ'];
+        options.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            selectElement.appendChild(option);
+        });
+    } else if (route === 'Маршрут 4 — Складской комплекс второй территории') {
+        for (let i = 1; i <= 9; i++) {
+            const option = document.createElement('option');
+            option.value = `Сектор ${i}`;
+            option.textContent = `Сектор ${i}`;
+            selectElement.appendChild(option);
+        }
+    } else if (route === 'Маршрут 5 — УПАТ,УПИТ,УПНИ') {
+        const options = ['УПАТ', 'УПИТ', 'УПНИ'];
+        options.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            selectElement.appendChild(option);
+        });
+    }
+    
+    // Восстанавливаем предыдущее значение, если оно существует в новых опциях
+    if (currentValue && currentValue !== 'custom') {
+        selectElement.value = currentValue;
+    } else {
+        selectElement.value = '';
+    }
+}
 
 // Управление модальным окном для фото
 document.addEventListener('DOMContentLoaded', function() {
@@ -496,7 +542,7 @@ function closeRemark(button){
     
     // Удаляем состояние
     voiceStates.delete(remarkId);
-    flashStates.delete(remarkId);
+    torchStates.delete(remarkId);
     
     remark.remove();
 }
@@ -521,9 +567,8 @@ function addRemark(){
             <label>Фото (камера)</label>
             <video id="video-${remarkCount}" autoplay playsinline></video>
             
-            <div class="flash-controls">
+            <div class="torch-controls">
                 <button onclick="takePhoto(${remarkCount})" id="photo-btn-${remarkCount}">📷 Сделать фото</button>
-                <button onclick="toggleFlash(${remarkCount})" id="flash-btn-${remarkCount}">⚡ Вспышка: Выкл</button>
                 <button onclick="toggleTorch(${remarkCount})" id="torch-btn-${remarkCount}">🔦 Подсветка: Выкл</button>
             </div>
             
@@ -559,13 +604,19 @@ function addRemark(){
             <input id="custom-responsible-${remarkId}" placeholder="Ввести вручную" style="display:none; margin-top:5px;">
 
             <label>Место обнаружения</label>
-            <input type="text" id="location-${remarkId}" placeholder="Укажите конкретное место обнаружения">
+            <select class="location-select" id="location-select-${remarkId}" onchange="toggleLocationCustomInput(this, '${remarkId}')"></select>
+            <input type="text" id="location-custom-${remarkId}" placeholder="Укажите конкретное место обнаружения" style="display:none; margin-top:5px;">
 
         </div>
     `;
 
     document.getElementById("remarks").appendChild(r);
 
+    // Инициализируем выпадающий список для места обнаружения
+    const routeSelect = document.getElementById('route');
+    const locationSelect = document.getElementById(`location-select-${remarkId}`);
+    updateSingleLocationSelect(locationSelect, routeSelect.value);
+    
     // Инициализация камеры
     initCamera(remarkCount);
 }
@@ -580,8 +631,8 @@ function initCamera(remarkNumber) {
         video.srcObject.getTracks().forEach(track => track.stop());
     }
     
-    // Проверяем поддержку вспышки
-    const state = flashStates.get(remarkNumber) || { flashOn: false, torchOn: false, supported: false };
+    // Проверяем поддержку подсветки
+    const state = torchStates.get(remarkNumber) || { torchOn: false, supported: false };
     
     // Пытаемся использовать подсветку если включена
     const constraints = {
@@ -610,29 +661,24 @@ function initCamera(remarkNumber) {
         // Обновляем состояние
         state.stream = stream;
         state.supported = true;
-        flashStates.set(remarkNumber, state);
+        torchStates.set(remarkNumber, state);
         
         // Обновляем кнопки
-        updateFlashButtons(remarkNumber);
+        updateTorchButton(remarkNumber);
     })
     .catch(err => {
         console.error("Ошибка доступа к камере:", err);
         
-        // Пробуем без вспышки/подсветки
+        // Пробуем без подсветки
         if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-            console.log("Вспышка/подсветка не поддерживаются, пробуем без них");
-            initCameraWithoutFlash(remarkNumber);
+            console.log("Подсветка не поддерживается, пробуем без неё");
+            initCameraWithoutTorch(remarkNumber);
         } else {
             video.style.display = "none";
             const btn = document.getElementById(`photo-btn-${remarkNumber}`);
             if (btn) {
                 btn.disabled = true;
                 btn.textContent = "📷 Камера недоступна";
-            }
-            const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
-            if (flashBtn) {
-                flashBtn.disabled = true;
-                flashBtn.textContent = "⚡ Не поддерживается";
             }
             const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
             if (torchBtn) {
@@ -643,9 +689,8 @@ function initCamera(remarkNumber) {
     });
 }
 
-function initCameraWithoutFlash(remarkNumber) {
+function initCameraWithoutTorch(remarkNumber) {
     const video = document.getElementById(`video-${remarkNumber}`);
-    const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
     const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
     
     navigator.mediaDevices.getUserMedia({ 
@@ -660,13 +705,9 @@ function initCameraWithoutFlash(remarkNumber) {
         video.play();
         
         // Обновляем состояние
-        const state = { flashOn: false, torchOn: false, supported: false, stream: stream };
-        flashStates.set(remarkNumber, state);
+        const state = { torchOn: false, supported: false, stream: stream };
+        torchStates.set(remarkNumber, state);
         
-        if (flashBtn) {
-            flashBtn.textContent = "⚡ Вспышка: Не поддерживается";
-            flashBtn.disabled = true;
-        }
         if (torchBtn) {
             torchBtn.textContent = "🔦 Подсветка: Не поддерживается";
             torchBtn.disabled = true;
@@ -678,15 +719,9 @@ function initCameraWithoutFlash(remarkNumber) {
     });
 }
 
-function updateFlashButtons(remarkNumber) {
-    const state = flashStates.get(remarkNumber) || { flashOn: false, torchOn: false };
-    const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
+function updateTorchButton(remarkNumber) {
+    const state = torchStates.get(remarkNumber) || { torchOn: false };
     const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
-    
-    if (flashBtn) {
-        flashBtn.textContent = state.flashOn ? "⚡ Вспышка: Вкл" : "⚡ Вспышка: Выкл";
-        flashBtn.classList.toggle('flash-on', state.flashOn);
-    }
     
     if (torchBtn) {
         torchBtn.textContent = state.torchOn ? "🔦 Подсветка: Вкл" : "🔦 Подсветка: Выкл";
@@ -694,25 +729,8 @@ function updateFlashButtons(remarkNumber) {
     }
 }
 
-function toggleFlash(remarkNumber) {
-    const state = flashStates.get(remarkNumber);
-    if (!state) return;
-    
-    // Переключаем состояние вспышки
-    state.flashOn = !state.flashOn;
-    flashStates.set(remarkNumber, state);
-    
-    // Обновляем кнопку
-    updateFlashButtons(remarkNumber);
-    
-    // Показываем уведомление
-    if (state.flashOn) {
-        alert("Вспышка включена. При следующем фотографировании будет использован эффект вспышки для улучшения качества.");
-    }
-}
-
 function toggleTorch(remarkNumber) {
-    const state = flashStates.get(remarkNumber);
+    const state = torchStates.get(remarkNumber);
     if (!state || !state.stream) return;
     
     // Переключаем состояние подсветки
@@ -727,17 +745,17 @@ function toggleTorch(remarkNumber) {
                 advanced: [{ torch: true }]
             }).then(() => {
                 console.log("Подсветка включена");
-                flashStates.set(remarkNumber, state);
-                updateFlashButtons(remarkNumber);
+                torchStates.set(remarkNumber, state);
+                updateTorchButton(remarkNumber);
             }).catch(err => {
                 console.log("Не удалось включить подсветку:", err);
                 state.torchOn = false;
-                updateFlashButtons(remarkNumber);
+                updateTorchButton(remarkNumber);
                 alert("Подсветка не поддерживается на этом устройстве.");
             });
         } else {
             state.torchOn = false;
-            updateFlashButtons(remarkNumber);
+            updateTorchButton(remarkNumber);
             alert("Подсветка не поддерживается на этом устройстве.");
         }
     } else {
@@ -748,31 +766,9 @@ function toggleTorch(remarkNumber) {
                 advanced: [{ torch: false }]
             });
         }
-        flashStates.set(remarkNumber, state);
-        updateFlashButtons(remarkNumber);
+        torchStates.set(remarkNumber, state);
+        updateTorchButton(remarkNumber);
     }
-}
-
-function triggerFlashEffect() {
-    const flashEffect = document.getElementById('flashEffect');
-    
-    // Быстрая вспышка
-    flashEffect.style.opacity = '0.9';
-    setTimeout(() => {
-        flashEffect.style.opacity = '0.7';
-        setTimeout(() => {
-            flashEffect.style.opacity = '0.5';
-            setTimeout(() => {
-                flashEffect.style.opacity = '0.3';
-                setTimeout(() => {
-                    flashEffect.style.opacity = '0.1';
-                    setTimeout(() => {
-                        flashEffect.style.opacity = '0';
-                    }, 50);
-                }, 50);
-            }, 50);
-        }, 50);
-    }, 30);
 }
 
 function takePhoto(remarkNumber) {
@@ -787,21 +783,8 @@ function takePhoto(remarkNumber) {
         return;
     }
     
-    // Проверяем, включена ли вспышка
-    const state = flashStates.get(remarkNumber) || { flashOn: false };
-    
-    // Если вспышка включена, запускаем эффект
-    if (state.flashOn) {
-        triggerFlashEffect();
-        
-        // Ждем немного для эффекта вспышки
-        setTimeout(() => {
-            capturePhoto(remarkNumber, video, remarkId, preview, remark);
-        }, 100);
-    } else {
-        // Фото без вспышки
-        capturePhoto(remarkNumber, video, remarkId, preview, remark);
-    }
+    // Делаем фото
+    capturePhoto(remarkNumber, video, remarkId, preview, remark);
 }
 
 function capturePhoto(remarkNumber, video, remarkId, preview, remark) {
@@ -811,9 +794,8 @@ function capturePhoto(remarkNumber, video, remarkId, preview, remark) {
     
     const context = canvas.getContext('2d');
     
-    // Добавляем небольшое улучшение для темных фото
-    if (flashStates.get(remarkNumber)?.flashOn) {
-        // Слегка увеличиваем яркость при использовании вспышки
+    // Если включена подсветка, улучшаем качество фото
+    if (torchStates.get(remarkNumber)?.torchOn) {
         context.filter = 'brightness(1.1) contrast(1.05)';
     }
     
@@ -855,6 +837,14 @@ function capturePhoto(remarkNumber, video, remarkId, preview, remark) {
 function toggleCustomInput(select, remarkId){
     const customInput = document.getElementById(`custom-responsible-${remarkId}`);
     customInput.style.display = select.value === "custom" ? "block" : "none";
+}
+
+function toggleLocationCustomInput(select, remarkId){
+    const customInput = document.getElementById(`location-custom-${remarkId}`);
+    customInput.style.display = select.value === "custom" ? "block" : "none";
+    if (select.value !== "custom") {
+        customInput.value = select.value;
+    }
 }
 
 // УЛУЧШЕННОЕ РАСПОЗНАВАНИЕ РЕЧИ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
@@ -1287,7 +1277,16 @@ async function exportExcelWithImages() {
             const sel = document.getElementById(`responsible-${remarkNumber}`);
             const customInput = document.getElementById(`custom-responsible-${remarkId}`);
             const resp = sel && sel.value === "custom" ? (customInput?.value || "Не указан") : (sel?.value || "Не указан");
-            const location = document.getElementById(`location-${remarkId}`)?.value || ""; // Получаем место обнаружения
+            
+            // Получаем место обнаружения (из выпадающего списка или ручного ввода)
+            const locationSelect = document.getElementById(`location-select-${remarkId}`);
+            const locationCustom = document.getElementById(`location-custom-${remarkId}`);
+            let location = "";
+            if (locationSelect && locationSelect.value === "custom" && locationCustom) {
+                location = locationCustom.value || "";
+            } else if (locationSelect) {
+                location = locationSelect.value || "";
+            }
             
             const hasPhoto = remark.hasAttribute('data-photo-blob');
             
