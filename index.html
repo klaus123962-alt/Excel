@@ -168,7 +168,7 @@ video{
     border-radius:4px;
     margin:5px;
     border:2px solid var(--main);
-    object-fit:contain;
+    object-fit:cover;
     cursor:zoom-in;
     transition:transform 0.3s;
 }
@@ -273,11 +273,56 @@ video{
     font-size: 14px;
 }
 
+/* Стили для управления вспышкой */
+.flash-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.flash-controls button {
+    flex: 1;
+    min-width: 140px;
+}
+
+.flash-on {
+    background: #ff9800 !important;
+    color: white !important;
+}
+
+.flash-on:hover {
+    background: #f57c00 !important;
+}
+
+/* Эффект вспышки при фотографировании */
+.flash-effect {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    opacity: 0;
+    z-index: 9999;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+/* Кнопка подсветки (torch) */
+.torch-on {
+    background: linear-gradient(45deg, #FF9800, #FF5722) !important;
+    color: white !important;
+    font-weight: bold;
+}
+
 /* ===== MOBILE ===== */
 @media(max-width:768px){
     .route-grid{ grid-template-columns:1fr; }
     .voice-controls{ flex-direction:column; }
     .voice-controls button{ width:100%; min-width:auto; }
+    .flash-controls{ flex-direction:column; }
+    .flash-controls button{ width:100%; min-width:auto; }
     video{ max-width:100%; }
     .photo-preview img{ max-width:200px; max-height:150px; }
 }
@@ -324,6 +369,9 @@ video{
     </div>
 </div>
 
+<!-- Эффект вспышки -->
+<div id="flashEffect" class="flash-effect"></div>
+
 <div id="loading" class="loading">
     <div class="loading-spinner"></div>
     <div>Создание протокола с фотографиями...</div>
@@ -333,7 +381,7 @@ video{
 
 <header>
     <div class="header-top">
-        <img src="data:image/png;base64,ВАШ_КОД_BASE64_ЗДЕСЬ" class="logo" alt="Логотип">
+        <img src="http://irtz.ru/PC/pc.png" class="logo" alt="Логотип">
         <div class="header-title">
             <h1>ЧЕК-ЛИСТ ОБХОДА</h1>
             <p>Операционный контроль</p>
@@ -385,6 +433,8 @@ let remarkCount = 0;
 const recognitions = new Map();
 // Храним состояние для каждого замечания
 const voiceStates = new Map();
+// Храним состояние вспышки для каждого замечания
+const flashStates = new Map();
 
 // Управление модальным окном для фото
 document.addEventListener('DOMContentLoaded', function() {
@@ -446,6 +496,7 @@ function closeRemark(button){
     
     // Удаляем состояние
     voiceStates.delete(remarkId);
+    flashStates.delete(remarkId);
     
     remark.remove();
 }
@@ -469,7 +520,13 @@ function addRemark(){
 
             <label>Фото (камера)</label>
             <video id="video-${remarkCount}" autoplay playsinline></video>
-            <button onclick="takePhoto(${remarkCount})" id="photo-btn-${remarkCount}">📷 Сделать фото</button>
+            
+            <div class="flash-controls">
+                <button onclick="takePhoto(${remarkCount})" id="photo-btn-${remarkCount}">📷 Сделать фото</button>
+                <button onclick="toggleFlash(${remarkCount})" id="flash-btn-${remarkCount}">⚡ Вспышка: Выкл</button>
+                <button onclick="toggleTorch(${remarkCount})" id="torch-btn-${remarkCount}">🔦 Подсветка: Выкл</button>
+            </div>
+            
             <div class="photo-preview" id="photo-preview-${remarkId}"></div>
 
             <label>Голосовое описание</label>
@@ -523,6 +580,74 @@ function initCamera(remarkNumber) {
         video.srcObject.getTracks().forEach(track => track.stop());
     }
     
+    // Проверяем поддержку вспышки
+    const state = flashStates.get(remarkNumber) || { flashOn: false, torchOn: false, supported: false };
+    
+    // Пытаемся использовать подсветку если включена
+    const constraints = {
+        video: { 
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        }
+    };
+    
+    // Попробуем добавить torch если браузер поддерживает
+    if (state.torchOn) {
+        try {
+            // Это работает в некоторых современных браузерах
+            constraints.video.torch = true;
+        } catch (e) {
+            console.log("Torch не поддерживается");
+        }
+    }
+    
+    navigator.mediaDevices.getUserMedia(constraints)
+    .then(stream => {
+        video.srcObject = stream;
+        video.play().catch(e => console.error("Ошибка воспроизведения видео:", e));
+        
+        // Обновляем состояние
+        state.stream = stream;
+        state.supported = true;
+        flashStates.set(remarkNumber, state);
+        
+        // Обновляем кнопки
+        updateFlashButtons(remarkNumber);
+    })
+    .catch(err => {
+        console.error("Ошибка доступа к камере:", err);
+        
+        // Пробуем без вспышки/подсветки
+        if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+            console.log("Вспышка/подсветка не поддерживаются, пробуем без них");
+            initCameraWithoutFlash(remarkNumber);
+        } else {
+            video.style.display = "none";
+            const btn = document.getElementById(`photo-btn-${remarkNumber}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = "📷 Камера недоступна";
+            }
+            const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
+            if (flashBtn) {
+                flashBtn.disabled = true;
+                flashBtn.textContent = "⚡ Не поддерживается";
+            }
+            const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
+            if (torchBtn) {
+                torchBtn.disabled = true;
+                torchBtn.textContent = "🔦 Не поддерживается";
+            }
+        }
+    });
+}
+
+function initCameraWithoutFlash(remarkNumber) {
+    const video = document.getElementById(`video-${remarkNumber}`);
+    const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
+    const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
+    
     navigator.mediaDevices.getUserMedia({ 
         video: { 
             facingMode: "environment",
@@ -532,17 +657,122 @@ function initCamera(remarkNumber) {
     })
     .then(stream => {
         video.srcObject = stream;
-        video.play().catch(e => console.error("Ошибка воспроизведения видео:", e));
+        video.play();
+        
+        // Обновляем состояние
+        const state = { flashOn: false, torchOn: false, supported: false, stream: stream };
+        flashStates.set(remarkNumber, state);
+        
+        if (flashBtn) {
+            flashBtn.textContent = "⚡ Вспышка: Не поддерживается";
+            flashBtn.disabled = true;
+        }
+        if (torchBtn) {
+            torchBtn.textContent = "🔦 Подсветка: Не поддерживается";
+            torchBtn.disabled = true;
+        }
     })
     .catch(err => {
-        console.error("Ошибка доступа к камере:", err);
+        console.error("Не удалось запустить камеру:", err);
         video.style.display = "none";
-        const btn = document.getElementById(`photo-btn-${remarkNumber}`);
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = "📷 Камера недоступна";
-        }
     });
+}
+
+function updateFlashButtons(remarkNumber) {
+    const state = flashStates.get(remarkNumber) || { flashOn: false, torchOn: false };
+    const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
+    const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
+    
+    if (flashBtn) {
+        flashBtn.textContent = state.flashOn ? "⚡ Вспышка: Вкл" : "⚡ Вспышка: Выкл";
+        flashBtn.classList.toggle('flash-on', state.flashOn);
+    }
+    
+    if (torchBtn) {
+        torchBtn.textContent = state.torchOn ? "🔦 Подсветка: Вкл" : "🔦 Подсветка: Выкл";
+        torchBtn.classList.toggle('torch-on', state.torchOn);
+    }
+}
+
+function toggleFlash(remarkNumber) {
+    const state = flashStates.get(remarkNumber);
+    if (!state) return;
+    
+    // Переключаем состояние вспышки
+    state.flashOn = !state.flashOn;
+    flashStates.set(remarkNumber, state);
+    
+    // Обновляем кнопку
+    updateFlashButtons(remarkNumber);
+    
+    // Показываем уведомление
+    if (state.flashOn) {
+        alert("Вспышка включена. При следующем фотографировании будет использован эффект вспышки для улучшения качества.");
+    }
+}
+
+function toggleTorch(remarkNumber) {
+    const state = flashStates.get(remarkNumber);
+    if (!state || !state.stream) return;
+    
+    // Переключаем состояние подсветки
+    const newTorchState = !state.torchOn;
+    state.torchOn = newTorchState;
+    
+    if (newTorchState) {
+        // Пробуем включить подсветку через MediaStreamTrack
+        const videoTrack = state.stream.getVideoTracks()[0];
+        if (videoTrack && 'applyConstraints' in videoTrack) {
+            videoTrack.applyConstraints({
+                advanced: [{ torch: true }]
+            }).then(() => {
+                console.log("Подсветка включена");
+                flashStates.set(remarkNumber, state);
+                updateFlashButtons(remarkNumber);
+            }).catch(err => {
+                console.log("Не удалось включить подсветку:", err);
+                state.torchOn = false;
+                updateFlashButtons(remarkNumber);
+                alert("Подсветка не поддерживается на этом устройстве.");
+            });
+        } else {
+            state.torchOn = false;
+            updateFlashButtons(remarkNumber);
+            alert("Подсветка не поддерживается на этом устройстве.");
+        }
+    } else {
+        // Выключаем подсветку
+        const videoTrack = state.stream.getVideoTracks()[0];
+        if (videoTrack && 'applyConstraints' in videoTrack) {
+            videoTrack.applyConstraints({
+                advanced: [{ torch: false }]
+            });
+        }
+        flashStates.set(remarkNumber, state);
+        updateFlashButtons(remarkNumber);
+    }
+}
+
+function triggerFlashEffect() {
+    const flashEffect = document.getElementById('flashEffect');
+    
+    // Быстрая вспышка
+    flashEffect.style.opacity = '0.9';
+    setTimeout(() => {
+        flashEffect.style.opacity = '0.7';
+        setTimeout(() => {
+            flashEffect.style.opacity = '0.5';
+            setTimeout(() => {
+                flashEffect.style.opacity = '0.3';
+                setTimeout(() => {
+                    flashEffect.style.opacity = '0.1';
+                    setTimeout(() => {
+                        flashEffect.style.opacity = '0';
+                    }, 50);
+                }, 50);
+            }, 50);
+        }, 50);
+    }, 30);
 }
 
 function takePhoto(remarkNumber) {
@@ -557,55 +787,57 @@ function takePhoto(remarkNumber) {
         return;
     }
     
+    // Проверяем, включена ли вспышка
+    const state = flashStates.get(remarkNumber) || { flashOn: false };
+    
+    // Если вспышка включена, запускаем эффект
+    if (state.flashOn) {
+        triggerFlashEffect();
+        
+        // Ждем немного для эффекта вспышки
+        setTimeout(() => {
+            capturePhoto(remarkNumber, video, remarkId, preview, remark);
+        }, 100);
+    } else {
+        // Фото без вспышки
+        capturePhoto(remarkNumber, video, remarkId, preview, remark);
+    }
+}
+
+function capturePhoto(remarkNumber, video, remarkId, preview, remark) {
     const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
     const context = canvas.getContext('2d');
     
-    // Получаем реальные размеры видео
-    const videoWidth = video.videoWidth;
-    const videoHeight = video.videoHeight;
+    // Добавляем небольшое улучшение для темных фото
+    if (flashStates.get(remarkNumber)?.flashOn) {
+        // Слегка увеличиваем яркость при использовании вспышки
+        context.filter = 'brightness(1.1) contrast(1.05)';
+    }
     
-    // Сохраняем ориентацию
-    const isPortrait = videoHeight > videoWidth;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Для сохранения ориентации устанавливаем размеры canvas как у видео
-    canvas.width = videoWidth;
-    canvas.height = videoHeight;
+    // Сбрасываем фильтр
+    context.filter = 'none';
     
-    // Рисуем изображение без поворотов
-    context.drawImage(video, 0, 0, videoWidth, videoHeight);
-    
-    // Сохраняем информацию об ориентации
-    remark.setAttribute('data-photo-orientation', isPortrait ? 'portrait' : 'landscape');
-    remark.setAttribute('data-photo-width', videoWidth);
-    remark.setAttribute('data-photo-height', videoHeight);
-    
-    // Сохраняем фото как Data URL
+    // Сохраняем фото как Data URL (для превью)
     const photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
     
-    // Создаем превью
+    // Создаем превью с возможностью увеличения
     const img = document.createElement('img');
     img.src = photoDataUrl;
     img.alt = `Фото замечания ${remarkNumber}`;
-    
-    // Для превью сохраняем ориентацию
-    if (isPortrait) {
-        img.style.maxWidth = '200px';
-        img.style.maxHeight = '300px';
-    } else {
-        img.style.maxWidth = '300px';
-        img.style.maxHeight = '200px';
-    }
-    img.style.objectFit = 'contain';
-    
     img.onclick = function() { zoomPhoto(this); };
     
     preview.innerHTML = '';
     preview.appendChild(img);
     
-    // Сохраняем фото
+    // Сохраняем фото в двух форматах
     remark.setAttribute('data-photo-base64', photoDataUrl);
     
-    // Сохраняем как Blob
+    // Сохраняем как Blob для Excel (больший размер для лучшего качества)
     canvas.toBlob(function(blob) {
         const reader = new FileReader();
         reader.onloadend = function() {
@@ -1068,6 +1300,9 @@ async function exportExcelWithImages() {
             row.getCell(6).value = ""; // Срок устранения
             row.getCell(7).value = "Не рассмотрено"; // Статус по умолчанию
             
+            // Устанавливаем высоту строки
+            row.height = 150; // Высота для фото
+            
             // Устанавливаем выравнивание
             for (let col = 1; col <= 7; col++) {
                 const cell = row.getCell(col);
@@ -1100,78 +1335,6 @@ async function exportExcelWithImages() {
                 error: 'Выберите значение из списка: Выполнено, В работе, Не рассмотрено, Отклонено'
             };
             
-            // Добавляем условное форматирование для цветового кодирования статусов
-            const statusColumnLetter = 'G'; // Колонка G (7)
-            
-            // Правило для "Выполнено" (зеленый)
-            worksheet.addConditionalFormatting({
-                ref: `${statusColumnLetter}${currentRow}`,
-                rules: [
-                    {
-                        type: 'containsText',
-                        operator: 'containsText',
-                        text: 'Выполнено',
-                        style: {
-                            fill: {
-                                type: 'pattern',
-                                pattern: 'solid',
-                                fgColor: { argb: 'FFC6EFCE' }
-                            },
-                            font: {
-                                color: { argb: 'FF006100' },
-                                bold: true
-                            }
-                        }
-                    }
-                ]
-            });
-            
-            // Правило для "В работе" (желтый)
-            worksheet.addConditionalFormatting({
-                ref: `${statusColumnLetter}${currentRow}`,
-                rules: [
-                    {
-                        type: 'containsText',
-                        operator: 'containsText',
-                        text: 'В работе',
-                        style: {
-                            fill: {
-                                type: 'pattern',
-                                pattern: 'solid',
-                                fgColor: { argb: 'FFFFEB9C' }
-                            },
-                            font: {
-                                color: { argb: 'FF9C5700' },
-                                bold: true
-                            }
-                        }
-                    }
-                ]
-            });
-            
-            // Правило для "Отклонено" (серый)
-            worksheet.addConditionalFormatting({
-                ref: `${statusColumnLetter}${currentRow}`,
-                rules: [
-                    {
-                        type: 'containsText',
-                        operator: 'containsText',
-                        text: 'Отклонено',
-                        style: {
-                            fill: {
-                                type: 'pattern',
-                                pattern: 'solid',
-                                fgColor: { argb: 'FFF2F2F2' }
-                            },
-                            font: {
-                                color: { argb: 'FF7F7F7F' },
-                                bold: true
-                            }
-                        }
-                    }
-                ]
-            });
-            
             // Добавляем фото, если есть
             if (hasPhoto) {
                 const photoBlob = remark.getAttribute('data-photo-blob');
@@ -1181,64 +1344,27 @@ async function exportExcelWithImages() {
                     const base64Data = photoBlob.split(',')[1];
                     const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
                     
-                    // Получаем сохраненные размеры изображения и ориентацию
-                    const originalWidth = parseInt(remark.getAttribute('data-photo-width')) || 0;
-                    const originalHeight = parseInt(remark.getAttribute('data-photo-height')) || 0;
-                    const orientation = remark.getAttribute('data-photo-orientation') || 'landscape';
-                    
                     // Добавляем изображение в Excel
                     const imageId = workbook.addImage({
                         buffer: imageBuffer,
                         extension: 'jpeg'
                     });
                     
-                    // Рассчитываем размеры для Excel с сохранением пропорций
-                    const maxCellWidth = 300;  // максимальная ширина в пикселях
-                    const maxCellHeight = 400; // максимальная высота в пикселях (увеличили для портретных фото)
-                    
-                    let targetWidth = originalWidth;
-                    let targetHeight = originalHeight;
-                    
-                    // Масштабируем, если нужно
-                    if (originalWidth > 0 && originalHeight > 0) {
-                        const widthRatio = maxCellWidth / originalWidth;
-                        const heightRatio = maxCellHeight / originalHeight;
-                        const scaleRatio = Math.min(widthRatio, heightRatio);
-                        
-                        targetWidth = Math.round(originalWidth * scaleRatio);
-                        targetHeight = Math.round(originalHeight * scaleRatio);
-                    } else {
-                        // Если размеры не сохранены, используем стандартные
-                        targetWidth = 300;
-                        targetHeight = 200;
-                    }
-                    
-                    // Автоматически подстраиваем высоту строки под изображение
-                    // В Excel: 1 пиксель ≈ 0.75 пунктов, + отступы
-                    const excelRowHeight = Math.max(120, Math.round(targetHeight * 0.75) + 20);
-                    row.height = excelRowHeight;
-                    
-                    // Рассчитываем отступ для центрирования изображения в ячейке
-                    const cellWidthPixels = 45 * 7; // примерная ширина колонки в пикселях
-                    const cellHeightPixels = excelRowHeight * 0.75;
-                    const offsetX = Math.max(0, Math.round((cellWidthPixels - targetWidth) / 2));
-                    const offsetY = Math.max(0, Math.round((cellHeightPixels - targetHeight) / 2));
-                    
                     // Вставляем изображение в ячейку B (колонка 2)
                     worksheet.addImage(imageId, {
-                        tl: { col: 1, row: currentRow - 1, offsetX: offsetX, offsetY: offsetY },
-                        ext: { width: targetWidth, height: targetHeight }
+                        tl: { col: 1, row: currentRow - 1 }, // Колонка B (индекс 1)
+                        br: { col: 2, row: currentRow }, // Занимает 2 колонки
+                        ext: { width: 300, height: 200 }
                     });
                     
-                    row.getCell(2).value = "";
-                    
+                    row.getCell(2).value = "Фото";
+                    row.getCell(2).alignment = { 
+                        vertical: 'bottom',
+                        horizontal: 'center'
+                    };
                 } catch (error) {
                     console.error("Ошибка при добавлении фото:", error);
                     row.getCell(2).value = "Ошибка фото";
-                    row.getCell(2).alignment = { 
-                        vertical: 'middle', 
-                        horizontal: 'center' 
-                    };
                 }
             } else {
                 row.getCell(2).value = "Нет фото";
@@ -1283,7 +1409,7 @@ async function exportExcelWithImages() {
         document.getElementById('loading').style.display = 'none';
         
         // Сообщение об успешном сохранении
-        alert(`Протокол "${fileName}" успешно сохранен.\nВсего замечаний: ${remarks.length}\n\nЯчейки "Статус" имеют цветовое кодирование:\n• Выполнено - зелёный\n• В работе - жёлтый\n• Отклонено - серый\n• Не рассмотрено - без цвета`);
+        alert(`Протокол "${fileName}" успешно сохранен.\nВсего замечаний: ${remarks.length}`);
         
     } catch (error) {
         console.error("Ошибка при создании Excel:", error);
