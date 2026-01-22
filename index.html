@@ -168,7 +168,7 @@ video{
     border-radius:4px;
     margin:5px;
     border:2px solid var(--main);
-    object-fit:cover;
+    object-fit:contain;
     cursor:zoom-in;
     transition:transform 0.3s;
 }
@@ -273,24 +273,18 @@ video{
     font-size: 14px;
 }
 
-/* Стили для управления подсветкой */
-.torch-controls {
-    display: flex;
-    gap: 8px;
+/* Стили для кнопки подсветки */
+.flash-button {
     margin-bottom: 10px;
-    flex-wrap: wrap;
 }
 
-.torch-controls button {
-    flex: 1;
-    min-width: 140px;
-}
-
-/* Кнопка подсветки (torch) */
-.torch-on {
-    background: linear-gradient(45deg, #FF9800, #FF5722) !important;
-    color: white !important;
+.flash-button.on {
+    background: #4CAF50;
     font-weight: bold;
+}
+
+.flash-button.off {
+    background: #f44336;
 }
 
 /* ===== MOBILE ===== */
@@ -298,8 +292,6 @@ video{
     .route-grid{ grid-template-columns:1fr; }
     .voice-controls{ flex-direction:column; }
     .voice-controls button{ width:100%; min-width:auto; }
-    .torch-controls{ flex-direction:column; }
-    .torch-controls button{ width:100%; min-width:auto; }
     video{ max-width:100%; }
     .photo-preview img{ max-width:200px; max-height:150px; }
 }
@@ -355,7 +347,7 @@ video{
 
 <header>
     <div class="header-top">
-        <img src="http://irtz.ru/PC/pc.png" class="logo" alt="Логотип">
+        <img src="" class="logo" alt="Логотип">
         <div class="header-title">
             <h1>ЧЕК-ЛИСТ ОБХОДА</h1>
             <p>Операционный контроль</p>
@@ -381,13 +373,12 @@ video{
         </div>
         <div>
             <label>Маршрут обхода</label>
-            <select id="route" onchange="updateLocationOptions()">
-            <option>Маршрут 1 — Складской комплекс первой территории</option>
+            <select id="route">
+                <option>Маршрут 1 — Складской комплекс первой территории</option>
                 <option>Маршрут 2 — ЦПТ( Сектора с 10 по 15)</option>
                 <option>Маршрут 3 — АБК, ИЛ, ОТК, ТС, СГЭ - первой площадки</option>
                 <option>Маршрут 4 — Складской комплекс второй территории</option>
                 <option>Маршрут 5 — УПАТ,УПИТ,УПНИ</option>
-
             </select>
         </div>
     </div>
@@ -407,80 +398,8 @@ let remarkCount = 0;
 const recognitions = new Map();
 // Храним состояние для каждого замечания
 const voiceStates = new Map();
-// Храним состояние подсветки для каждого замечания
-const torchStates = new Map();
-
-// Функция для обновления опций в зависимости от выбранного маршрута
-function updateLocationOptions() {
-    const routeSelect = document.getElementById('route');
-    const selectedRoute = routeSelect.value;
-    
-    // Обновляем все существующие поля "Место обнаружения"
-    document.querySelectorAll('.location-select').forEach(select => {
-        updateSingleLocationSelect(select, selectedRoute);
-    });
-}
-
-function updateSingleLocationSelect(selectElement, route) {
-    // Сохраняем текущее значение
-    const currentValue = selectElement.value;
-    
-    // Очищаем текущие опции
-    selectElement.innerHTML = '';
-    
-    // Добавляем опцию "Другое (ввести вручную)"
-    const customOption = document.createElement('option');
-    customOption.value = 'custom';
-    customOption.textContent = 'Другое (ввести вручную)';
-    selectElement.appendChild(customOption);
-    
-    // Добавляем опции в зависимости от маршрута
-    if (route === 'Маршрут 1 — Складской комплекс первой территории') {
-        for (let i = 1; i <= 8; i++) {
-            const option = document.createElement('option');
-            option.value = `Сектор ${i}`;
-            option.textContent = `Сектор ${i}`;
-            selectElement.appendChild(option);
-        }
-    } else if (route === 'Маршрут 2 — ЦПТ( Сектора с 10 по 15)') {
-        for (let i = 10; i <= 15; i++) {
-            const option = document.createElement('option');
-            option.value = `Сектор ${i}`;
-            option.textContent = `Сектор ${i}`;
-            selectElement.appendChild(option);
-        }
-    } else if (route === 'Маршрут 3 — АБК, ИЛ, ОТК, ТС, СГЭ - первой площадки') {
-        const options = ['АБК', 'ИЛ', 'ОТК', 'ТС', 'СГЭ'];
-        options.forEach(opt => {
-            const option = document.createElement('option');
-            option.value = opt;
-            option.textContent = opt;
-            selectElement.appendChild(option);
-        });
-    } else if (route === 'Маршрут 4 — Складской комплекс второй территории') {
-        for (let i = 1; i <= 9; i++) {
-            const option = document.createElement('option');
-            option.value = `Сектор ${i}`;
-            option.textContent = `Сектор ${i}`;
-            selectElement.appendChild(option);
-        }
-    } else if (route === 'Маршрут 5 — УПАТ,УПИТ,УПНИ') {
-        const options = ['УПАТ', 'УПИТ', 'УПНИ'];
-        options.forEach(opt => {
-            const option = document.createElement('option');
-            option.value = opt;
-            option.textContent = opt;
-            selectElement.appendChild(option);
-        });
-    }
-    
-    // Восстанавливаем предыдущее значение, если оно существует в новых опциях
-    if (currentValue && currentValue !== 'custom') {
-        selectElement.value = currentValue;
-    } else {
-        selectElement.value = '';
-    }
-}
+// Храним настройки подсветки для каждого замечания
+const flashStates = new Map();
 
 // Управление модальным окном для фото
 document.addEventListener('DOMContentLoaded', function() {
@@ -542,9 +461,132 @@ function closeRemark(button){
     
     // Удаляем состояние
     voiceStates.delete(remarkId);
-    torchStates.delete(remarkId);
+    flashStates.delete(remarkId);
     
     remark.remove();
+}
+
+function updateLocationSelect(remarkId) {
+    const routeSelect = document.getElementById('route');
+    const locationSelect = document.getElementById(`location-${remarkId}`);
+    const customLocationInput = document.getElementById(`custom-location-${remarkId}`);
+    
+    if (!locationSelect) return;
+    
+    const selectedRoute = routeSelect.value;
+    let options = [];
+    
+    if (selectedRoute.includes("Маршрут 1 — Складской комплекс первой территории")) {
+        options = ['Сектор 1', 'Сектор 2', 'Сектор 3', 'Сектор 4', 'Сектор 5', 'Сектор 6', 'Сектор 7', 'Сектор 8'];
+    } else if (selectedRoute.includes("Маршрут 2 — ЦПТ( Сектора с 10 по 15)")) {
+        options = ['Сектор 10', 'Сектор 11', 'Сектор 12', 'Сектор 13', 'Сектор 14', 'Сектор 15'];
+    } else if (selectedRoute.includes("Маршрут 3 — АБК, ИЛ, ОТК, ТС, СГЭ - первой площадки")) {
+        options = ['АБК', 'ИЛ', 'ОТК', 'ТС', 'СГЭ'];
+    } else if (selectedRoute.includes("Маршрут 4 — Складской комплекс второй территории")) {
+        options = ['Сектор 1', 'Сектор 2', 'Сектор 3', 'Сектор 4', 'Сектор 5', 'Сектор 6', 'Сектор 7', 'Сектор 8', 'Сектор 9'];
+    } else if (selectedRoute.includes("Маршрут 5 — УПАТ,УПИТ,УПНИ")) {
+        options = ['УПАТ', 'УПИТ', 'УПНИ'];
+    }
+    
+    // Сохраняем текущее значение
+    const currentValue = locationSelect.value;
+    
+    // Очищаем и добавляем новые опции
+    locationSelect.innerHTML = '';
+    
+    // Добавляем стандартные опции
+    options.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.textContent = option;
+        locationSelect.appendChild(opt);
+    });
+    
+    // Добавляем опцию для ручного ввода
+    const customOpt = document.createElement('option');
+    customOpt.value = 'custom';
+    customOpt.textContent = 'Ввести вручную';
+    locationSelect.appendChild(customOpt);
+    
+    // Восстанавливаем предыдущее значение, если оно есть в новых опциях
+    if (currentValue && options.includes(currentValue)) {
+        locationSelect.value = currentValue;
+    }
+    
+    // Показываем/скрываем поле для ручного ввода
+    if (locationSelect.value === 'custom') {
+        customLocationInput.style.display = 'block';
+    } else {
+        customLocationInput.style.display = 'none';
+    }
+}
+
+function toggleCustomLocation(select, remarkId) {
+    const customInput = document.getElementById(`custom-location-${remarkId}`);
+    if (select.value === 'custom') {
+        customInput.style.display = 'block';
+        customInput.focus();
+    } else {
+        customInput.style.display = 'none';
+    }
+}
+
+// Функция для переключения подсветки
+function toggleFlash(remarkNumber) {
+    const remarkId = `remark-${remarkNumber}`;
+    const flashButton = document.getElementById(`flash-btn-${remarkNumber}`);
+    
+    // Переключаем состояние
+    const currentState = flashStates.get(remarkId) || false;
+    const newState = !currentState;
+    
+    // Сохраняем новое состояние
+    flashStates.set(remarkId, newState);
+    
+    // Обновляем кнопку
+    if (newState) {
+        flashButton.textContent = '🌙 Выключить подсветку';
+        flashButton.classList.remove('off');
+        flashButton.classList.add('on');
+    } else {
+        flashButton.textContent = '🔆 Включить подсветку';
+        flashButton.classList.remove('on');
+        flashButton.classList.add('off');
+    }
+    
+    // Применяем настройки подсветки к камере
+    applyFlashSettings(remarkNumber);
+}
+
+function applyFlashSettings(remarkNumber) {
+    const videoId = `video-${remarkNumber}`;
+    const video = document.getElementById(videoId);
+    
+    if (!video || !video.srcObject) return;
+    
+    const remarkId = `remark-${remarkNumber}`;
+    const useFlash = flashStates.get(remarkId) || false;
+    
+    // Получаем текущий поток
+    const stream = video.srcObject;
+    const track = stream.getVideoTracks()[0];
+    
+    if (track && track.getCapabilities) {
+        const capabilities = track.getCapabilities();
+        
+        // Проверяем поддержку вспышки/подсветки
+        if (capabilities.torch) {
+            track.applyConstraints({
+                advanced: [{torch: useFlash}]
+            }).then(() => {
+                console.log(`Подсветка ${useFlash ? 'включена' : 'выключена'} для камеры ${remarkNumber}`);
+            }).catch(err => {
+                console.error('Ошибка при изменении настроек подсветки:', err);
+            });
+        } else {
+            console.log('Данная камера не поддерживает управление подсветкой');
+        }
+    }
 }
 
 function addRemark(){
@@ -567,11 +609,9 @@ function addRemark(){
             <label>Фото (камера)</label>
             <video id="video-${remarkCount}" autoplay playsinline></video>
             
-            <div class="torch-controls">
-                <button onclick="takePhoto(${remarkCount})" id="photo-btn-${remarkCount}">📷 Сделать фото</button>
-                <button onclick="toggleTorch(${remarkCount})" id="torch-btn-${remarkCount}">🔦 Подсветка: Выкл</button>
-            </div>
+            <button onclick="toggleFlash(${remarkCount})" id="flash-btn-${remarkCount}" class="flash-button off">🔆 Включить подсветку</button>
             
+            <button onclick="takePhoto(${remarkCount})" id="photo-btn-${remarkCount}">📷 Сделать фото</button>
             <div class="photo-preview" id="photo-preview-${remarkId}"></div>
 
             <label>Голосовое описание</label>
@@ -592,34 +632,48 @@ function addRemark(){
 
             <label>Ответственный</label>
             <select id="responsible-${remarkCount}" onchange="toggleCustomInput(this, '${remarkId}')">
-                    <option>Новиков В.В.</option>
+                <option>Новиков В.В.</option>
                 <option>Свинин Э.Е.</option>
                 <option>Тимофеев А.В.</option>
                 <option>Савранов А.В.</option>
                 <option>Эпов Д.В.</option>
-		<option>Мосин А.Н.</option>
-		<option>Трубачев Ю.А.</option>
+                <option>Мосин А.Н.</option>
+                <option>Трубачев Ю.А.</option>
                 <option value="custom">Другие</option>
             </select>
             <input id="custom-responsible-${remarkId}" placeholder="Ввести вручную" style="display:none; margin-top:5px;">
 
             <label>Место обнаружения</label>
-            <select class="location-select" id="location-select-${remarkId}" onchange="toggleLocationCustomInput(this, '${remarkId}')"></select>
-            <input type="text" id="location-custom-${remarkId}" placeholder="Укажите конкретное место обнаружения" style="display:none; margin-top:5px;">
+            <select id="location-${remarkId}" onchange="toggleCustomLocation(this, '${remarkId}')">
+                <!-- Опции будут заполнены автоматически -->
+            </select>
+            <input id="custom-location-${remarkId}" placeholder="Ввести вручную" style="display:none; margin-top:5px;">
 
         </div>
     `;
 
     document.getElementById("remarks").appendChild(r);
 
-    // Инициализируем выпадающий список для места обнаружения
-    const routeSelect = document.getElementById('route');
-    const locationSelect = document.getElementById(`location-select-${remarkId}`);
-    updateSingleLocationSelect(locationSelect, routeSelect.value);
-    
     // Инициализация камеры
     initCamera(remarkCount);
+    
+    // Обновляем выпадающий список для места обнаружения
+    updateLocationSelect(remarkId);
+    
+    // Устанавливаем подсветку по умолчанию (выключена)
+    flashStates.set(remarkId, false);
 }
+
+// Обновляем все выпадающие списки мест обнаружения при изменении маршрута
+document.getElementById('route').addEventListener('change', function() {
+    // Обновляем все существующие замечания
+    for (let i = 1; i <= remarkCount; i++) {
+        const remarkId = `remark-${i}`;
+        if (document.getElementById(remarkId)) {
+            updateLocationSelect(remarkId);
+        }
+    }
+});
 
 function initCamera(remarkNumber) {
     const videoId = `video-${remarkNumber}`;
@@ -631,10 +685,7 @@ function initCamera(remarkNumber) {
         video.srcObject.getTracks().forEach(track => track.stop());
     }
     
-    // Проверяем поддержку подсветки
-    const state = torchStates.get(remarkNumber) || { torchOn: false, supported: false };
-    
-    // Пытаемся использовать подсветку если включена
+    // Настройки для камеры с возможностью подсветки
     const constraints = {
         video: { 
             facingMode: "environment",
@@ -643,132 +694,27 @@ function initCamera(remarkNumber) {
         }
     };
     
-    // Попробуем добавить torch если браузер поддерживает
-    if (state.torchOn) {
-        try {
-            // Это работает в некоторых современных браузерах
-            constraints.video.torch = true;
-        } catch (e) {
-            console.log("Torch не поддерживается");
-        }
-    }
-    
     navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
         video.srcObject = stream;
         video.play().catch(e => console.error("Ошибка воспроизведения видео:", e));
         
-        // Обновляем состояние
-        state.stream = stream;
-        state.supported = true;
-        torchStates.set(remarkNumber, state);
-        
-        // Обновляем кнопки
-        updateTorchButton(remarkNumber);
+        // Применяем настройки подсветки после инициализации камеры
+        setTimeout(() => applyFlashSettings(remarkNumber), 500);
     })
     .catch(err => {
         console.error("Ошибка доступа к камере:", err);
-        
-        // Пробуем без подсветки
-        if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-            console.log("Подсветка не поддерживается, пробуем без неё");
-            initCameraWithoutTorch(remarkNumber);
-        } else {
-            video.style.display = "none";
-            const btn = document.getElementById(`photo-btn-${remarkNumber}`);
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = "📷 Камера недоступна";
-            }
-            const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
-            if (torchBtn) {
-                torchBtn.disabled = true;
-                torchBtn.textContent = "🔦 Не поддерживается";
-            }
-        }
-    });
-}
-
-function initCameraWithoutTorch(remarkNumber) {
-    const video = document.getElementById(`video-${remarkNumber}`);
-    const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
-    
-    navigator.mediaDevices.getUserMedia({ 
-        video: { 
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-        } 
-    })
-    .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        
-        // Обновляем состояние
-        const state = { torchOn: false, supported: false, stream: stream };
-        torchStates.set(remarkNumber, state);
-        
-        if (torchBtn) {
-            torchBtn.textContent = "🔦 Подсветка: Не поддерживается";
-            torchBtn.disabled = true;
-        }
-    })
-    .catch(err => {
-        console.error("Не удалось запустить камеру:", err);
         video.style.display = "none";
+        const btn = document.getElementById(`photo-btn-${remarkNumber}`);
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "📷 Камера недоступна";
+        }
+        
+        // Также отключаем кнопку подсветки
+        const flashBtn = document.getElementById(`flash-btn-${remarkNumber}`);
+        if (flashBtn) flashBtn.disabled = true;
     });
-}
-
-function updateTorchButton(remarkNumber) {
-    const state = torchStates.get(remarkNumber) || { torchOn: false };
-    const torchBtn = document.getElementById(`torch-btn-${remarkNumber}`);
-    
-    if (torchBtn) {
-        torchBtn.textContent = state.torchOn ? "🔦 Подсветка: Вкл" : "🔦 Подсветка: Выкл";
-        torchBtn.classList.toggle('torch-on', state.torchOn);
-    }
-}
-
-function toggleTorch(remarkNumber) {
-    const state = torchStates.get(remarkNumber);
-    if (!state || !state.stream) return;
-    
-    // Переключаем состояние подсветки
-    const newTorchState = !state.torchOn;
-    state.torchOn = newTorchState;
-    
-    if (newTorchState) {
-        // Пробуем включить подсветку через MediaStreamTrack
-        const videoTrack = state.stream.getVideoTracks()[0];
-        if (videoTrack && 'applyConstraints' in videoTrack) {
-            videoTrack.applyConstraints({
-                advanced: [{ torch: true }]
-            }).then(() => {
-                console.log("Подсветка включена");
-                torchStates.set(remarkNumber, state);
-                updateTorchButton(remarkNumber);
-            }).catch(err => {
-                console.log("Не удалось включить подсветку:", err);
-                state.torchOn = false;
-                updateTorchButton(remarkNumber);
-                alert("Подсветка не поддерживается на этом устройстве.");
-            });
-        } else {
-            state.torchOn = false;
-            updateTorchButton(remarkNumber);
-            alert("Подсветка не поддерживается на этом устройстве.");
-        }
-    } else {
-        // Выключаем подсветку
-        const videoTrack = state.stream.getVideoTracks()[0];
-        if (videoTrack && 'applyConstraints' in videoTrack) {
-            videoTrack.applyConstraints({
-                advanced: [{ torch: false }]
-            });
-        }
-        torchStates.set(remarkNumber, state);
-        updateTorchButton(remarkNumber);
-    }
 }
 
 function takePhoto(remarkNumber) {
@@ -783,68 +729,111 @@ function takePhoto(remarkNumber) {
         return;
     }
     
-    // Делаем фото
-    capturePhoto(remarkNumber, video, remarkId, preview, remark);
-}
-
-function capturePhoto(remarkNumber, video, remarkId, preview, remark) {
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Временно включаем подсветку при съемке, если она настроена
+    const useFlash = flashStates.get(remarkId) || false;
+    let flashPromise = Promise.resolve();
     
-    const context = canvas.getContext('2d');
-    
-    // Если включена подсветка, улучшаем качество фото
-    if (torchStates.get(remarkNumber)?.torchOn) {
-        context.filter = 'brightness(1.1) contrast(1.05)';
+    if (useFlash) {
+        const stream = video.srcObject;
+        const track = stream.getVideoTracks()[0];
+        
+        if (track && track.getCapabilities && track.getCapabilities().torch) {
+            // Включаем подсветку на время съемки
+            flashPromise = track.applyConstraints({
+                advanced: [{torch: true}]
+            });
+        }
     }
     
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Сбрасываем фильтр
-    context.filter = 'none';
-    
-    // Сохраняем фото как Data URL (для превью)
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    
-    // Создаем превью с возможностью увеличения
-    const img = document.createElement('img');
-    img.src = photoDataUrl;
-    img.alt = `Фото замечания ${remarkNumber}`;
-    img.onclick = function() { zoomPhoto(this); };
-    
-    preview.innerHTML = '';
-    preview.appendChild(img);
-    
-    // Сохраняем фото в двух форматах
-    remark.setAttribute('data-photo-base64', photoDataUrl);
-    
-    // Сохраняем как Blob для Excel (больший размер для лучшего качества)
-    canvas.toBlob(function(blob) {
-        const reader = new FileReader();
-        reader.onloadend = function() {
-            remark.setAttribute('data-photo-blob', reader.result);
-        };
-        reader.readAsDataURL(blob);
-    }, 'image/jpeg', 0.9);
-    
-    // Обновляем кнопку
-    const btn = document.getElementById(`photo-btn-${remarkNumber}`);
-    btn.textContent = '📷 Фото сделано';
-    btn.disabled = true;
+    flashPromise.then(() => {
+        // Даем время подсветке включиться
+        return new Promise(resolve => setTimeout(resolve, 300));
+    }).then(() => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        // Получаем реальные размеры видео
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        
+        // Сохраняем ориентацию
+        const isPortrait = videoHeight > videoWidth;
+        
+        // Для сохранения ориентации устанавливаем размеры canvas как у видео
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        
+        // Рисуем изображение без поворотов
+        context.drawImage(video, 0, 0, videoWidth, videoHeight);
+        
+        // Сохраняем информацию об ориентации
+        remark.setAttribute('data-photo-orientation', isPortrait ? 'portrait' : 'landscape');
+        remark.setAttribute('data-photo-width', videoWidth);
+        remark.setAttribute('data-photo-height', videoHeight);
+        
+        // Сохраняем фото как Data URL
+        const photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        
+        // Создаем превью
+        const img = document.createElement('img');
+        img.src = photoDataUrl;
+        img.alt = `Фото замечания ${remarkNumber}`;
+        
+        // Для превью сохраняем ориентацию
+        if (isPortrait) {
+            img.style.maxWidth = '200px';
+            img.style.maxHeight = '300px';
+        } else {
+            img.style.maxWidth = '300px';
+            img.style.maxHeight = '200px';
+        }
+        img.style.objectFit = 'contain';
+        
+        img.onclick = function() { zoomPhoto(this); };
+        
+        preview.innerHTML = '';
+        preview.appendChild(img);
+        
+        // Сохраняем фото
+        remark.setAttribute('data-photo-base64', photoDataUrl);
+        
+        // Сохраняем как Blob
+        canvas.toBlob(function(blob) {
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                remark.setAttribute('data-photo-blob', reader.result);
+            };
+            reader.readAsDataURL(blob);
+        }, 'image/jpeg', 0.9);
+        
+        // Обновляем кнопку
+        const btn = document.getElementById(`photo-btn-${remarkNumber}`);
+        btn.textContent = '📷 Фото сделано';
+        btn.disabled = true;
+        
+        // Возвращаем настройки подсветки к исходным
+        if (useFlash) {
+            const stream = video.srcObject;
+            const track = stream.getVideoTracks()[0];
+            
+            if (track && track.getCapabilities && track.getCapabilities().torch) {
+                // Восстанавливаем настройки подсветки
+                setTimeout(() => {
+                    track.applyConstraints({
+                        advanced: [{torch: useFlash}]
+                    });
+                }, 500);
+            }
+        }
+    }).catch(error => {
+        console.error("Ошибка при съемке фото:", error);
+        alert("Ошибка при съемке фото. Попробуйте еще раз.");
+    });
 }
 
 function toggleCustomInput(select, remarkId){
     const customInput = document.getElementById(`custom-responsible-${remarkId}`);
     customInput.style.display = select.value === "custom" ? "block" : "none";
-}
-
-function toggleLocationCustomInput(select, remarkId){
-    const customInput = document.getElementById(`location-custom-${remarkId}`);
-    customInput.style.display = select.value === "custom" ? "block" : "none";
-    if (select.value !== "custom") {
-        customInput.value = select.value;
-    }
 }
 
 // УЛУЧШЕННОЕ РАСПОЗНАВАНИЕ РЕЧИ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
@@ -1278,12 +1267,12 @@ async function exportExcelWithImages() {
             const customInput = document.getElementById(`custom-responsible-${remarkId}`);
             const resp = sel && sel.value === "custom" ? (customInput?.value || "Не указан") : (sel?.value || "Не указан");
             
-            // Получаем место обнаружения (из выпадающего списка или ручного ввода)
-            const locationSelect = document.getElementById(`location-select-${remarkId}`);
-            const locationCustom = document.getElementById(`location-custom-${remarkId}`);
+            // Получаем место обнаружения
+            const locationSelect = document.getElementById(`location-${remarkId}`);
+            const customLocationInput = document.getElementById(`custom-location-${remarkId}`);
             let location = "";
-            if (locationSelect && locationSelect.value === "custom" && locationCustom) {
-                location = locationCustom.value || "";
+            if (locationSelect && locationSelect.value === "custom") {
+                location = customLocationInput?.value || "";
             } else if (locationSelect) {
                 location = locationSelect.value || "";
             }
@@ -1298,9 +1287,6 @@ async function exportExcelWithImages() {
             row.getCell(5).value = location; // Место обнаружения
             row.getCell(6).value = ""; // Срок устранения
             row.getCell(7).value = "Не рассмотрено"; // Статус по умолчанию
-            
-            // Устанавливаем высоту строки
-            row.height = 150; // Высота для фото
             
             // Устанавливаем выравнивание
             for (let col = 1; col <= 7; col++) {
@@ -1334,6 +1320,78 @@ async function exportExcelWithImages() {
                 error: 'Выберите значение из списка: Выполнено, В работе, Не рассмотрено, Отклонено'
             };
             
+            // Добавляем условное форматирование для цветового кодирования статусов
+            const statusColumnLetter = 'G'; // Колонка G (7)
+            
+            // Правило для "Выполнено" (зеленый)
+            worksheet.addConditionalFormatting({
+                ref: `${statusColumnLetter}${currentRow}`,
+                rules: [
+                    {
+                        type: 'containsText',
+                        operator: 'containsText',
+                        text: 'Выполнено',
+                        style: {
+                            fill: {
+                                type: 'pattern',
+                                pattern: 'solid',
+                                fgColor: { argb: 'FFC6EFCE' }
+                            },
+                            font: {
+                                color: { argb: 'FF006100' },
+                                bold: true
+                            }
+                        }
+                    }
+                ]
+            });
+            
+            // Правило для "В работе" (желтый)
+            worksheet.addConditionalFormatting({
+                ref: `${statusColumnLetter}${currentRow}`,
+                rules: [
+                    {
+                        type: 'containsText',
+                        operator: 'containsText',
+                        text: 'В работе',
+                        style: {
+                            fill: {
+                                type: 'pattern',
+                                pattern: 'solid',
+                                fgColor: { argb: 'FFFFEB9C' }
+                            },
+                            font: {
+                                color: { argb: 'FF9C5700' },
+                                bold: true
+                            }
+                        }
+                    }
+                ]
+            });
+            
+            // Правило для "Отклонено" (серый)
+            worksheet.addConditionalFormatting({
+                ref: `${statusColumnLetter}${currentRow}`,
+                rules: [
+                    {
+                        type: 'containsText',
+                        operator: 'containsText',
+                        text: 'Отклонено',
+                        style: {
+                            fill: {
+                                type: 'pattern',
+                                pattern: 'solid',
+                                fgColor: { argb: 'FFF2F2F2' }
+                            },
+                            font: {
+                                color: { argb: 'FF7F7F7F' },
+                                bold: true
+                            }
+                        }
+                    }
+                ]
+            });
+            
             // Добавляем фото, если есть
             if (hasPhoto) {
                 const photoBlob = remark.getAttribute('data-photo-blob');
@@ -1343,27 +1401,64 @@ async function exportExcelWithImages() {
                     const base64Data = photoBlob.split(',')[1];
                     const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
                     
+                    // Получаем сохраненные размеры изображения и ориентацию
+                    const originalWidth = parseInt(remark.getAttribute('data-photo-width')) || 0;
+                    const originalHeight = parseInt(remark.getAttribute('data-photo-height')) || 0;
+                    const orientation = remark.getAttribute('data-photo-orientation') || 'landscape';
+                    
                     // Добавляем изображение в Excel
                     const imageId = workbook.addImage({
                         buffer: imageBuffer,
                         extension: 'jpeg'
                     });
                     
+                    // Рассчитываем размеры для Excel с сохранением пропорций
+                    const maxCellWidth = 300;  // максимальная ширина в пикселях
+                    const maxCellHeight = 400; // максимальная высота в пикселях (увеличили для портретных фото)
+                    
+                    let targetWidth = originalWidth;
+                    let targetHeight = originalHeight;
+                    
+                    // Масштабируем, если нужно
+                    if (originalWidth > 0 && originalHeight > 0) {
+                        const widthRatio = maxCellWidth / originalWidth;
+                        const heightRatio = maxCellHeight / originalHeight;
+                        const scaleRatio = Math.min(widthRatio, heightRatio);
+                        
+                        targetWidth = Math.round(originalWidth * scaleRatio);
+                        targetHeight = Math.round(originalHeight * scaleRatio);
+                    } else {
+                        // Если размеры не сохранены, используем стандартные
+                        targetWidth = 300;
+                        targetHeight = 200;
+                    }
+                    
+                    // Автоматически подстраиваем высоту строки под изображение
+                    // В Excel: 1 пиксель ≈ 0.75 пунктов, + отступы
+                    const excelRowHeight = Math.max(120, Math.round(targetHeight * 0.75) + 20);
+                    row.height = excelRowHeight;
+                    
+                    // Рассчитываем отступ для центрирования изображения в ячейке
+                    const cellWidthPixels = 45 * 7; // примерная ширина колонки в пикселях
+                    const cellHeightPixels = excelRowHeight * 0.75;
+                    const offsetX = Math.max(0, Math.round((cellWidthPixels - targetWidth) / 2));
+                    const offsetY = Math.max(0, Math.round((cellHeightPixels - targetHeight) / 2));
+                    
                     // Вставляем изображение в ячейку B (колонка 2)
                     worksheet.addImage(imageId, {
-                        tl: { col: 1, row: currentRow - 1 }, // Колонка B (индекс 1)
-                        br: { col: 2, row: currentRow }, // Занимает 2 колонки
-                        ext: { width: 300, height: 200 }
+                        tl: { col: 1, row: currentRow - 1, offsetX: offsetX, offsetY: offsetY },
+                        ext: { width: targetWidth, height: targetHeight }
                     });
                     
-                    row.getCell(2).value = "Фото";
-                    row.getCell(2).alignment = { 
-                        vertical: 'bottom',
-                        horizontal: 'center'
-                    };
+                    row.getCell(2).value = "";
+                    
                 } catch (error) {
                     console.error("Ошибка при добавлении фото:", error);
                     row.getCell(2).value = "Ошибка фото";
+                    row.getCell(2).alignment = { 
+                        vertical: 'middle', 
+                        horizontal: 'center' 
+                    };
                 }
             } else {
                 row.getCell(2).value = "Нет фото";
@@ -1408,7 +1503,7 @@ async function exportExcelWithImages() {
         document.getElementById('loading').style.display = 'none';
         
         // Сообщение об успешном сохранении
-        alert(`Протокол "${fileName}" успешно сохранен.\nВсего замечаний: ${remarks.length}`);
+        alert(`Протокол "${fileName}" успешно сохранен.\nВсего замечаний: ${remarks.length}\n\nЯчейки "Статус" имеют цветовое кодирование:\n• Выполнено - зелёный\n• В работе - жёлтый\n• Отклонено - серый\n• Не рассмотрено - без цвета`);
         
     } catch (error) {
         console.error("Ошибка при создании Excel:", error);
